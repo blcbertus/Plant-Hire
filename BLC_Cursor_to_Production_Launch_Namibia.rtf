@@ -1,0 +1,92 @@
+{\rtf1\ansi\deff0\deftab720{\fonttbl{\f0\fswiss Calibri;}}
+\paperw11906\paperh16838\margl900\margr900\margt720\margb720
+\f0\fs22
+
+{\fs36\b BLC Plant Hire\par}
+{\fs28\b From development in Cursor to live apps (Google Play and Apple App Store)\par}
+{\fs22\b Namibia context, backend mail API, and detailed activity list\par}
+\fs18\i Save as .docx in Word via File > Save As if required.\i0\fs22\par
+\line
+
+{\fs26\b PART A - Namibia-specific considerations\par\b0}
+- {\b Entity and tax:} Confirm CC/company registration, VAT registration if applicable, and how subscription/ad revenue is invoiced (NAD).\par
+- {\b Banking:} Production payout account verified with your bank (e.g. Bank Windhoek); reconciliation process for listing fees and advertiser payments.\par
+- {\b Payments landscape:} Evaluate hosted checkout (DPO Network, Mpay/Mobipaid, bank gateways) per volume; document chosen provider in Privacy Policy and terms.\par
+- {\b Telecoms:} Primary contact numbers (+264) tested for telco formatting; SMS links where used; WhatsApp Business policy if you automate messages.\par
+- {\b Data protection:} Align privacy notice with Namibian POPIA-style expectations and global store rules (Apple/Google); state cross-border hosting if APIs sit outside NA.\par
+- {\b Labour and safety copy:} Any hire/sale disclaimers in-app reviewed for local practice (not legal advice - lawyer sign-off for contracts).\par
+- {\b Support hours:} Publish realistic response SLAs (you already reference review windows per tier).\par
+\line
+
+{\fs26\b PART B - Backend mail API (design through production)\par\b0}
+{\b Discovery}\par
+- List every email-triggering flow: password reset, bid/hire notifications, payment confirmations, bulk mail to leads, admin alerts.\par
+- Choose stack (Node, Python, PHP, serverless) matching your hosting; define JSON schema per endpoint.\par
+{\b Security}\par
+- API key or JWT for server routes; rotate keys; never embed production secrets in the WebView app.\par
+- Rate limiting, IP allowlist optional, validation of payloads; sanitize attachments if added later.\par
+- SPF, DKIM, DMARC on sending domain to reduce spam folder placement.\par
+{\b Implementation}\par
+- Endpoints such as POST /api/mail, /api/mail/bulk, /api/admin/verify, /api/notify/payment as hinted in app config.\par
+- Structured logging and idempotency for payment notifications.\par
+{\b Deployment}\par
+- HTTPS only; TLS 1.2+; environment variables for SMTP or transactional provider (SendGrid, Mailgun, SES, or local SMTP).\par
+- Staging URL wired in app storage key blc_api_base; production cutover checklist.\par
+{\b Operations}\par
+- Bounce and complaint handling; dead-letter queue or alerts when mail fails.\par
+\line
+
+{\fs26\b PART C - Detailed activities: Cursor development to final product\par\b0}
+
+{\fs24\b Phase 1 - Repository and Cursor workflow\par\b0}
+1. Clone repo; open workspace in Cursor; confirm JDK/Android SDK paths for Gradle.\par
+2. Document branch strategy (main, release); enable format-on-save if team agrees.\par
+3. Inventory single-file web app vs native wrappers (Capacitor/WebView); note sync command so www stays identical.\par
+4. Run debug APK locally; capture screenshots for regression folder.\par
+5. Add .env.example or README notes for API base URL (no secrets in git).\par
+
+{\fs24\b Phase 2 - Application features and quality\par\b0}
+6. Complete owner flows: login, listing submit, tier selection, agreements.\par
+7. Admin flows: approvals, tiers, social ZIP batches, analytics export paths.\par
+8. Premium/Featured rules consistent with store marketing copy.\par
+9. Safe areas and draggable chat FAB verified on notched devices.\par
+10. Localisation strings audited (EN/AF/OS) for new screens.\par
+11. Accessibility pass: tap targets, contrast, error messages.\par
+12. Performance: image size limits; lazy load where applicable.\par
+
+{\fs24\b Phase 3 - Backend integration\par\b0}
+13. Deploy staging API; point app blc_api_base at staging.\par
+14. Implement and test mail endpoints against real SMTP/provider.\par
+15. Verify admin verify and password reset paths end-to-end.\par
+16. Load-test bulk mail modestly; confirm timeouts in WebView.\par
+17. Production API deploy; rotate keys; lock CORS to app origins if browser-hosted.\par
+
+{\fs24\b Phase 4 - Test and release engineering\par\b0}
+18. Android: release keystore created and backed up offline; Play App Signing enabled.\par
+19. Build signed AAB minSdk/targetSdk compliant; Proguard/R8 rules if enabled.\par
+20. iOS: Apple Developer account active; certificates and provisioning profiles.\par
+21. Archive release IPA; ATS (App Transport Security) allows only HTTPS endpoints you own.\par
+22. Automated smoke tests or manual test scripts documented.\par
+
+{\fs24\b Phase 5 - Store submissions\par\b0}
+23. Google: Play Console app created; Data Safety, content rating, target audience completed.\par
+24. Store listing assets (screenshots, feature graphic, descriptions) Namibian-market wording.\par
+25. Internal and closed testing tracks cleared; pre-launch report addressed.\par
+26. Apple: App Store Connect metadata; App Privacy nutrition labels match data collection.\par
+27. Encryption/export compliance questions answered accurately.\par
+28. Submit both; monitor review queues; prepare fix builds within 48h if rejected.\par
+
+{\fs24\b Phase 6 - Launch and operations\par\b0}
+29. Staged rollout on Play; monitor ANRs and crashes.\par
+30. TestFlight or phased iOS release if using.\par
+31. Publish support email and phone on listing and policy pages.\par
+32. Incident playbook: API down, mail backlog, fraudulent listings.\par
+33. Quarterly review: store policy changes, SDK updates, dependency patches.\par
+\line
+
+{\fs26\b Appendix - Cursor-focused habits\par\b0}
+- Keep tasks small; one PR-sized change per feature when moving off single-file HTML.\par
+- Use AI review for diffs but manually verify payment and auth paths.\par
+- Tag releases in git matching store versionCode/versionName (Android) and CFBundleShortVersionString (iOS).\par
+
+}

@@ -1,0 +1,63 @@
+BLC Plant Hire — Sample enquiry to MTC (SMS only / A2P)
+==========================================================
+Edit bracketed fields. Send as email or attach to a PDF letter.
+
+----------------------------------------------------------------------
+SHORT EMAIL VERSION (copy-paste)
+----------------------------------------------------------------------
+
+To: [MTC Business / Enterprise / Wholesale — use current contact from mtc.com.na]
+
+Subject: Enquiry — transactional SMS (A2P) API for business platform
+
+Dear MTC Business Team,
+
+We are [Company name], trading as BLC Plant Hire, based in [town], Namibia. We run an app and web platform for heavy plant hire and sales.
+
+We need SMS ONLY for transactional messages to users who have opted in (e.g. booking updates, payment-related notices, account/security alerts). We do not use SMS for marketing without consent.
+
+Please advise whether MTC offers a commercial A2P SMS API (HTTPS REST or SMPP), including:
+• onboarding / KYC requirements
+• pricing (setup + per SMS) and any minimums
+• sender ID or short code options for Namibia
+• technical docs and a test/sandbox environment
+
+Initial volume estimate: approximately [X] SMS per month, scalable later.
+
+Contact: [Name], [Title] | [email] | [+264 …]
+
+Kind regards,
+[Name]
+BLC Plant Hire
+
+----------------------------------------------------------------------
+FORMAL LETTER VERSION (SMS ONLY)
+----------------------------------------------------------------------
+
+[Letterhead]
+[Date]
+
+The Business / Enterprise Team
+MTC Namibia
+Windhoek
+
+Subject: Request for transactional SMS (A2P) service — BLC Plant Hire
+
+Dear Sir/Madam,
+
+We write on behalf of [registered entity], trading as BLC Plant Hire, Namibia operators of a digital platform for plant hire and equipment sales.
+
+Our requirement is SMS ONLY: application-to-person (A2P) transactional messaging to mobile numbers (e.g. booking confirmations, payment-related notices, security alerts). Messages will be sent only where users have agreed to receive them, in line with applicable rules and MTC acceptable-use policies.
+
+We request information on:
+1. Availability of an enterprise SMS API (e.g. HTTPS REST or SMPP) for transactional traffic.
+2. Registration, sender ID or short code, and any regulatory/KYC steps.
+3. Commercial terms and estimated pricing at approximately [X] SMS per month initially.
+
+We would welcome documentation, a contact for enterprise sales, and next steps to pilot in a test environment.
+
+Yours faithfully,
+
+[Name]
+[Title], BLC Plant Hire
+Email: […]  Phone: [+264 …]

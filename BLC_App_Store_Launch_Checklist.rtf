@@ -1,0 +1,31 @@
+{\rtf1\ansi\deff0\deftab720{\fonttbl{\f0\fswiss Calibri;}}
+\paperw11906\paperh16838\margl720\margr720\margt567\margb567
+\f0\fs22
+
+{\fs32\b BLC Plant Hire - Launch checklist (Google Play and Apple App Store)\par}
+\fs18\i One-page summary. In Word: File > Save As > Word Document (.docx) if you need .docx.\i0\fs22\par\par
+
+{\fs26\b 1. Business and compliance\par\b0}
+Register trading/legal details as needed. Publish live URLs for {\b Privacy Policy} and {\b Terms of Use} before submission. List every data type you collect (accounts, analytics, payments, chat, etc.) and align store disclosures with that list.\par\par
+
+{\fs26\b 2. Developer accounts\par\b0}
+{\b Google Play:} pay registration fee; complete identity verification. {\b Apple:} enroll in Apple Developer Program (annual fee). Accept updated agreements in Play Console and App Store Connect when shown.\par\par
+
+{\fs26\b 3. Technical readiness\par\b0}
+Build {\b release} variants only (not debug). Android: target/min SDK meet current Google requirements; ship {\b AAB}. iOS: deployment target per Apple rules; archive {\b IPA} from Xcode or CI. Configure signing (Play App Signing; Apple certificates and provisioning). Remove dev secrets; point APIs to production with HTTPS. Test on real phones (safe areas, WebView/Capacitor if used).\par\par
+
+{\fs26\b 4. Google Play Console\par\b0}
+Finalize {\b package name}. Store listing: titles, descriptions, screenshots, feature graphic, hi-res icon. Complete {\b content rating}, {\b target audience}, and {\b Data safety} (must match privacy policy). Run internal/closed testing; fix {\b pre-launch report} issues. Set countries and pricing; roll out to production.\par\par
+
+{\fs26\b 5. Apple App Store Connect\par\b0}
+Match {\b bundle ID} to Xcode. Upload build; add screenshots for required device sizes; metadata; support URL; privacy policy URL. Fill {\b App Privacy}; answer encryption/export if applicable; age rating. Submit for {\b App Review}; iterate on feedback.\par\par
+
+{\fs26\b 6. Assets and brand\par\b0}
+Final app icons (Android adaptive/mipmap; iOS asset catalog). Screenshots reflect actual UI; avoid misleading claims.\par\par
+
+{\fs26\b 7. Recommended before wide launch\par\b0}
+Beta (TestFlight and Play closed testing); crash reporting (e.g. Crashlytics); staged rollout on Play; respond plan for reviews.\par\par
+
+{\fs26\b 8. Go-live and maintenance\par\b0}
+Monitor crashes, ANRs, and reviews after release. Budget time for policy and SDK updates each year.\par
+}
