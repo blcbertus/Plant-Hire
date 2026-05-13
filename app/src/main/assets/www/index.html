@@ -137,10 +137,95 @@ async function blcAdminRequestPasswordReset(email) {
   }
 }
 
+function blcAdminMailHeaders(adminPassword) {
+  const h = blcMailHeaders();
+  const p = String(adminPassword || "").trim();
+  if (p) h["X-BLC-Admin-Password"] = p;
+  return h;
+}
+
+async function blcPaymentRegister(body) {
+  const base = getBlcApiBase();
+  if (!base) return { ok: false, error: "no_api" };
+  try {
+    const r = await fetch(base + "/api/payments/register", {
+      method: "POST",
+      headers: blcMailHeaders(),
+      body: JSON.stringify(body),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return { ok: false, error: d.error || "register_failed", ...d };
+    return d.ok ? { ok: true, ...d } : { ok: false, error: d.error || "register_failed", ...d };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
+async function blcPaymentSync(reference) {
+  const base = getBlcApiBase();
+  if (!base) return { ok: false, error: "no_api" };
+  const ref = String(reference || "").trim();
+  if (!ref) return { ok: false, error: "no_ref" };
+  try {
+    const r = await fetch(base + "/api/payments/sync/" + encodeURIComponent(ref), { method: "POST", headers: blcMailHeaders() });
+    return await r.json().catch(() => ({ ok: false, error: "parse" }));
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
+async function blcPaymentStatus(reference) {
+  const base = getBlcApiBase();
+  if (!base) return { ok: false, error: "no_api" };
+  const ref = String(reference || "").trim();
+  if (!ref) return { ok: false, error: "no_ref" };
+  try {
+    const r = await fetch(base + "/api/payments/status/" + encodeURIComponent(ref), { headers: blcMailHeaders() });
+    return await r.json().catch(() => ({ ok: false, error: "parse" }));
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
+function applyMergeHintsLocal(mergeHints, payment, bidsSnap, bookingsSnap, setBids, setBookings) {
+  if (!mergeHints || !mergeHints.entityId) return;
+  const ts =
+    payment && payment.updatedAt && !Number.isNaN(Date.parse(payment.updatedAt))
+      ? Date.parse(payment.updatedAt)
+      : Date.now();
+  if (mergeHints.kind === "sale_bid") {
+    const u = bidsSnap.map((b) =>
+      b.id === mergeHints.entityId ? { ...b, paymentReceivedAt: ts, serviceAccessActive: mergeHints.serviceAccessActive !== false } : b
+    );
+    setBids(u);
+  } else if (mergeHints.kind === "hire_booking") {
+    const u = bookingsSnap.map((b) =>
+      b.id === mergeHints.entityId ? { ...b, paymentReceivedAt: ts, serviceAccessActive: mergeHints.serviceAccessActive !== false } : b
+    );
+    setBookings(u);
+  }
+}
+
 // ── Namibia online payment options (from BLC “Payment API options for Namibia” reference) ──
 const LS_PAYMENT_CHECKOUT = "blc_payment_checkout_links";
+const BLC_CLIENT_APP_URL_STORAGE_KEY = "blc_client_app_url";
+/** Optional default when shipping a hosted web build (same value must be set as CLIENT_APP_URL on the API). */
+const BLC_CLIENT_APP_URL_DEFAULT = "";
 function getPaymentCheckoutLinks() {
   try { return { ...{ dpo: "", mpay: "", bank: "", paypal: "" }, ...JSON.parse(localStorage.getItem(LS_PAYMENT_CHECKOUT) || "{}") }; } catch { return { dpo: "", mpay: "", bank: "", paypal: "" }; }
+}
+function getBlcClientAppUrl() {
+  try {
+    const s = (localStorage.getItem(BLC_CLIENT_APP_URL_STORAGE_KEY) || BLC_CLIENT_APP_URL_DEFAULT || "").trim();
+    return s.replace(/\/$/, "");
+  } catch {
+    return (BLC_CLIENT_APP_URL_DEFAULT || "").replace(/\/$/, "");
+  }
+}
+function saveBlcClientAppUrl(url) {
+  try {
+    localStorage.setItem(BLC_CLIENT_APP_URL_STORAGE_KEY, String(url || "").trim().replace(/\/$/, ""));
+  } catch {}
 }
 function savePaymentCheckoutLinks(obj) { try { localStorage.setItem(LS_PAYMENT_CHECKOUT, JSON.stringify(obj)); } catch {} }
 const NA_PAYMENT_CONTEXT = "Not financial or legal advice—verify pricing and terms with each provider.";
@@ -153,22 +238,71 @@ const NA_PAYMENT_PICK = [
   "Prefer providers with a local team and clear sandbox/docs if you want fewer integration surprises.",
 ];
 const NA_PAYMENT_PROVIDERS = [
+  {
+    id: "paytoday",
+    name: "PayToday — Namibia",
+    href: "https://paytoday.com.na/",
+    lines: [
+      "NAD-focused checkout used by BLC: the API registers a payment and serves a short-lived hosted PayToday page (`pay-with-paytoday.js`); return URLs verify via PayToday’s txstatus JSON and unlock the related bid or booking.",
+      "Android returns through `BLCAndroid.onPaymentComplete`; browser deployments need the API env `CLIENT_APP_URL` set to this app’s public HTTPS origin (see below)—same value as “Hosted web app URL” saved here.",
+    ],
+  },
   { id: "dpo", name: "DPO (Network) – Namibia", href: "https://dpogroup.com/online-payments/namibia/", lines: [ "Based in Windhoek; settlement in NAD; cards and other methods; APIs and integrations; payment links (useful to ship fast).", "Often named as straightforward in local discussions—confirm Apple Pay, Google Pay, and international card needs with DPO." ] },
   { id: "mpay", name: "Mpay (Mobipaid) – Namibia", href: "https://mpay-namibia.com/", lines: [ "Stresses no monthly or platform fees in their materials, transaction-based pricing, copy-and-pay (hosted) flows, and API access—low PCI surface, predictable “pay per sale” billing.", "Confirm exact MDR and any setup costs in writing; marketing and contracts can differ." ] },
   { id: "ngenius", name: "Bank-led gateways (e.g. NGenius / Standard Bank)", href: "https://www.standardbank.com.na", lines: [ "Some teams report NGenius (Standard Bank) as reliable in local threads. Worth a look if you already bank with them or want a bank-backed route.", "Onboarding can be more formal, but support is often strong once you are live." ] },
   { id: "paypal", name: "PayPal", href: "https://www.paypal.com/na", lines: [ "Easy API and good for international payers, but total cost (fees + FX) may not be the cheapest in every case.", "A common add-on next to a local NAD provider." ] },
   { id: "stripe", name: "Stripe and similar (global-only stacks)", href: "https://stripe.com", lines: [ "Many Namibian businesses use overseas entities to access Stripe; that adds hassle and compliance unless you already have that structure." ] },
 ];
-const NA_BOTTOM_LINE = "For many Namibian apps and shops, DPO (Network) and Mpay (Mobipaid) are the names that come up most often for local NAD + API or hosted checkout; bank gateways and PayPal are the other usual levers. The lowest-hassle, lowest-cost mix comes from comparing 2–3 written quotes for your expected volume and payment mix.";
+const NA_BOTTOM_LINE =
+  "For many Namibian apps and shops, PayToday, DPO (Network), and Mpay (Mobipaid) are common choices for local NAD + hosted or API checkout; bank gateways and PayPal are the other usual levers. The lowest-hassle, lowest-cost mix comes from comparing 2–3 written quotes for your expected volume and payment mix.";
 
 function NamibiaPaymentGatewaysPanel() {
   const [links, setLinks] = useState(() => getPaymentCheckoutLinks());
+  const [clientAppUrl, setClientAppUrl] = useState(() => getBlcClientAppUrl());
   const save = (patch) => { const n = { ...links, ...patch }; setLinks(n); savePaymentCheckoutLinks(n); };
+  const persistClientAppUrl = (raw) => {
+    const t = String(raw || "").trim().replace(/\/$/, "");
+    setClientAppUrl(t);
+    saveBlcClientAppUrl(t);
+  };
+  const copyEnvLine = () => {
+    const line = `CLIENT_APP_URL=${clientAppUrl || "https://your-hosted-app.example.com"}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(line).then(() => window.alert("Copied: " + line)).catch(() => window.prompt("Copy for backend-api/.env:", line));
+    } else window.prompt("Copy for backend-api/.env:", line);
+  };
   return (
     <div style={{maxWidth: 960, margin: "0 auto 40px", padding: "0 8px"}}>
       <div style={{fontFamily:"Oswald,sans-serif",fontSize:22,letterSpacing:"1px",color:"var(--ivory)",marginBottom: 10}}>💳 Online payments — Namibia (API / gateway options)</div>
       <p style={{fontSize: 12, color: "var(--bark)", marginBottom: 16}}><strong>Reference for BLC</strong> — {NA_PAYMENT_CONTEXT}</p>
       {NA_PAYMENT_INTRO.map((p, i) => <p key={i} style={{ fontSize: 13, color: "var(--sand)", lineHeight: 1.75, marginBottom: 12 }}>{p}</p>)}
+      <div style={{ background: "rgba(46,125,50,.08)", border: "1px solid var(--green-ok)", borderRadius: 6, padding: 16, marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--horizon)", marginBottom: 8 }}>Hosted web app URL — matches API CLIENT_APP_URL</div>
+        <p style={{ fontSize: 11, color: "var(--sand)", marginBottom: 12, lineHeight: 1.65 }}>
+          When users pay with PayToday in a normal browser (not the Android WebView app), the API redirects them back to this SPA using{" "}
+          <code style={{ fontSize: 10, color: "var(--teal-light)" }}>#paySync=&lt;payment reference&gt;</code>. Set the same HTTPS origin here as{" "}
+          <strong style={{ color: "var(--ivory)" }}>CLIENT_APP_URL</strong> on your backend (no trailing slash). Leave blank for Android-only distribution.
+        </p>
+        <div className="fg" style={{ marginBottom: 10 }}>
+          <label>Public SPA base URL</label>
+          <input
+            value={clientAppUrl}
+            onChange={(e) => persistClientAppUrl(e.target.value)}
+            placeholder="https://planthire.yourdomain.na"
+            autoComplete="url"
+          />
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <button type="button" className="btn-outline" style={{ fontSize: 11 }} onClick={copyEnvLine}>
+            Copy CLIENT_APP_URL line for .env
+          </button>
+          {clientAppUrl ? (
+            <span style={{ fontSize: 10, color: "var(--bark)", fontFamily: "ui-monospace,monospace" }}>
+              Redirect preview: {clientAppUrl}#paySync=…
+            </span>
+          ) : null}
+        </div>
+      </div>
       <div style={{ background: "var(--soil)", border: "1px solid var(--clay)", borderRadius: 6, padding: 16, marginBottom: 20 }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--dune)", marginBottom: 10 }}>Optional: your live checkout / pay links (HTTPS)</div>
         <p style={{ fontSize: 11, color: "var(--bark)", marginBottom: 12 }}>When set, “Pay online” in the quote modal can open your hosted page. Leave blank to use provider websites only.</p>
@@ -2312,6 +2446,7 @@ function AdminBookingsPanel({ bookings, setBookings, listings }) {
   const [filter, setFilter] = useState("all");
   const [quoteBooking, setQuoteBooking] = useState(null);
   const [payBusy, setPayBusy] = useState(null);
+  const [payBookingPtBusy, setPayBookingPtBusy] = useState(null);
 
   const pending   = bookings.filter(b => b.status === "pending");
   const confirmed = bookings.filter(b => b.status === "confirmed");
@@ -2393,6 +2528,49 @@ Service access for this hire: ACTIVE
     setPayBusy(null);
   };
 
+  const payBookingViaPayToday = async (b) => {
+    const qRef = b.quoteRef || genQuoteRef(b.id);
+    const { subject, body: mailBody } = buildQuoteEmail(b, qRef);
+    const vatRate = 0.15;
+    const subtotal = b.totalCost || 0;
+    const vat = Math.ceil(subtotal * vatRate);
+    const total = subtotal + vat;
+    const parts = String(b.bookedBy?.name || "").trim().split(/\s+/);
+    const invoiceText = `${mailBody}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Pay via PayToday (hosted checkout)
+Quote reference: ${qRef}
+Total (incl. VAT): N$${total.toLocaleString()}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    if (!window.confirm(`Open PayToday for N$${total.toLocaleString()} (${qRef})?`)) return;
+    setPayBookingPtBusy(b.id);
+    try {
+      const res = await blcPaymentRegister({
+        kind: "hire_booking",
+        entityId: b.id,
+        amountNad: total,
+        reference: qRef,
+        buyerEmail: b.bookedBy?.email || "",
+        buyerPhone: (b.bookedBy?.phone || "").replace(/\s/g, ""),
+        buyerFirstName: parts[0] || "",
+        buyerLastName: parts.slice(1).join(" ") || "",
+        invoiceText,
+        emailSubject: subject,
+        listingName: b.listingName || "",
+      });
+      if (!res.ok) {
+        try {
+          window.alert(res.error || "PayToday register failed.");
+        } catch {}
+        return;
+      }
+      if (res.checkoutUrl) window.location.href = res.checkoutUrl;
+    } finally {
+      setPayBookingPtBusy(null);
+    }
+  };
+
   const fmtDate = d => new Date(d).toLocaleDateString("en-NA",{day:"numeric",month:"short",year:"numeric"});
   const fmt = ts => new Date(ts).toLocaleString("en-NA",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
 
@@ -2472,14 +2650,26 @@ Service access for this hire: ACTIVE
                 </button>
               )}
               {b.status === "confirmed" && (
-                <button
-                  className="btn-sale"
-                  style={{padding:"5px 12px",fontSize:10,opacity:b.serviceAccessActive?0.5:1}}
-                  disabled={!!b.serviceAccessActive || payBusy===b.id}
-                  onClick={() => markHirePaymentReceived(b)}
-                >
-                  {b.serviceAccessActive ? "✓ Paid — access on" : payBusy===b.id ? "…" : "💳 Record payment received"}
-                </button>
+                <>
+                  {getBlcApiBase() && !b.serviceAccessActive && (
+                    <button
+                      className="btn-outline"
+                      style={{ padding: "5px 12px", fontSize: 10, borderColor: "#e8920c", color: "#e8920c" }}
+                      disabled={payBookingPtBusy === b.id}
+                      onClick={() => payBookingViaPayToday(b)}
+                    >
+                      {payBookingPtBusy === b.id ? "…" : "🇳🇦 PayToday"}
+                    </button>
+                  )}
+                  <button
+                    className="btn-sale"
+                    style={{padding:"5px 12px",fontSize:10,opacity:b.serviceAccessActive?0.5:1}}
+                    disabled={!!b.serviceAccessActive || payBusy===b.id}
+                    onClick={() => markHirePaymentReceived(b)}
+                  >
+                    {b.serviceAccessActive ? "✓ Paid — access on" : payBusy===b.id ? "…" : "💳 Record payment received"}
+                  </button>
+                </>
               )}
               {b.status !== "cancelled" && <button className="btn-reject" onClick={() => updateStatus(b.id,"cancelled")}>✕ Cancel</button>}
               <a href={`tel:${b.bookedBy?.phone}`} className="btn-primary" style={{textDecoration:"none",display:"inline-flex",alignItems:"center",gap:5,padding:"5px 12px",fontSize:10}}>📞 Call</a>
@@ -5597,6 +5787,7 @@ function AdminBidsPanel({ bids, setBids, listings, setListings }) {
   const [rejectingId, setRejectingId] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
   const [payBidBusy, setPayBidBusy] = useState(null);
+  const [payBidPtBusy, setPayBidPtBusy] = useState(null);
 
   const pending = bids.filter(b => b.status==="pending");
   const accepted = bids.filter(b => b.status==="accepted");
@@ -5693,6 +5884,39 @@ Buyer service / collection access: ACTIVE
     setPayBidBusy(null);
   };
 
+  const paySaleViaPayToday = async (bid) => {
+    const listing = listings.find((l) => l.id === bid.listingId);
+    const ownerEmail = listing?.email || "";
+    const invoice = buildSaleInvoiceEmail({ bid, listing, ownerEmail, buyerEmail: bid.email || "" });
+    const parts = String(bid.name || "").trim().split(/\s+/);
+    if (!window.confirm(`Open PayToday checkout for N$${invoice.saleAmount.toLocaleString()}?\nReference ${invoice.invoiceRef}`)) return;
+    setPayBidPtBusy(bid.id);
+    try {
+      const res = await blcPaymentRegister({
+        kind: "sale_bid",
+        entityId: bid.id,
+        amountNad: invoice.saleAmount,
+        reference: invoice.invoiceRef,
+        buyerEmail: bid.email || "",
+        buyerPhone: (bid.phone || "").replace(/\s/g, ""),
+        buyerFirstName: parts[0] || "",
+        buyerLastName: parts.slice(1).join(" ") || "",
+        invoiceText: invoice.body,
+        emailSubject: invoice.subject,
+        listingName: listing?.name || bid.listingName || "",
+      });
+      if (!res.ok) {
+        try {
+          window.alert(res.error || "PayToday register failed. Check API base, API key, and PayToday env on server.");
+        } catch {}
+        return;
+      }
+      if (res.checkoutUrl) window.location.href = res.checkoutUrl;
+    } finally {
+      setPayBidPtBusy(null);
+    }
+  };
+
   const fmtDate = ts => new Date(ts).toLocaleString("en-NA",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
 
   return (
@@ -5764,6 +5988,16 @@ Buyer service / collection access: ACTIVE
                 )}
                 {bid.status === "accepted" && (
                   <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                    {getBlcApiBase() && !bid.serviceAccessActive && (
+                      <button
+                        className="btn-outline"
+                        style={{ padding: "6px 14px", fontSize: 11, borderColor: "#e8920c", color: "#e8920c" }}
+                        disabled={payBidPtBusy === bid.id}
+                        onClick={() => paySaleViaPayToday(bid)}
+                      >
+                        {payBidPtBusy === bid.id ? "…" : "🇳🇦 Pay with PayToday"}
+                      </button>
+                    )}
                     <button
                       className="btn-sale"
                       style={{padding:"6px 14px",fontSize:11,opacity:bid.serviceAccessActive?0.55:1}}
@@ -6424,6 +6658,325 @@ function OwnerEquipmentDashboard({ listings, interests, bookings, bids, authUser
   );
 }
 
+function AdminPayTodayLedgerPanel({ bids, setBids, bookings, setBookings, listings }) {
+  const [adminPwd, setAdminPwd] = useState("");
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [busyId, setBusyId] = useState(null);
+  const [manual, setManual] = useState({
+    kind: "sale_bid",
+    entityId: "",
+    amountNad: "",
+    manualNote: "",
+    buyerEmail: "",
+    buyerPhone: "",
+    buyerFirstName: "",
+    buyerLastName: "",
+  });
+
+  const acceptedBids = bids.filter((b) => b.status === "accepted");
+  const confirmedBk = bookings.filter((b) => b.status === "confirmed");
+
+  const loadLedger = async () => {
+    setMsg("");
+    const base = getBlcApiBase();
+    if (!base || !getBlcApiKey()) {
+      setMsg("Configure API base URL and API key (same as mail API — localStorage blc_api_base / blc_api_key).");
+      return;
+    }
+    if (!adminPwd.trim()) {
+      setMsg("Enter admin password.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const r = await fetch(base + "/api/admin/payments", { headers: blcAdminMailHeaders(adminPwd.trim()) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) {
+        setMsg(d.error || "Could not load ledger.");
+        setPayments([]);
+        return;
+      }
+      setPayments(d.payments || []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmOne = async (id) => {
+    const base = getBlcApiBase();
+    if (!adminPwd.trim()) {
+      setMsg("Enter admin password.");
+      return;
+    }
+    setBusyId(id);
+    setMsg("");
+    try {
+      const r = await fetch(base + "/api/admin/payments/" + encodeURIComponent(id) + "/confirm-manual", {
+        method: "POST",
+        headers: blcAdminMailHeaders(adminPwd.trim()),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) {
+        setMsg(d.error || "Confirm failed.");
+        return;
+      }
+      if (d.mergeHints) applyMergeHintsLocal(d.mergeHints, d.payment, bids, bookings, setBids, setBookings);
+      await loadLedger();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const onPickEntity = (entityId) => {
+    const k = manual.kind;
+    if (k === "sale_bid") {
+      const bid = bids.find((x) => x.id === entityId);
+      const listing = bid && listings.find((l) => l.id === bid.listingId);
+      const inv = bid && buildSaleInvoiceEmail({ bid, listing, ownerEmail: listing?.email || "", buyerEmail: bid.email || "" });
+      const parts = String(bid?.name || "").trim().split(/\s+/);
+      setManual((m) => ({
+        ...m,
+        entityId,
+        amountNad: bid ? String(inv.saleAmount) : "",
+        buyerEmail: bid?.email || "",
+        buyerPhone: bid?.phone || "",
+        buyerFirstName: parts[0] || "",
+        buyerLastName: parts.slice(1).join(" ") || "",
+      }));
+      return;
+    }
+    if (k === "hire_booking") {
+      const b = bookings.find((x) => x.id === entityId);
+      const vatRate = 0.15;
+      const subtotal = b?.totalCost || 0;
+      const vat = Math.ceil(subtotal * vatRate);
+      const total = subtotal + vat;
+      const parts = String(b?.bookedBy?.name || "").trim().split(/\s+/);
+      setManual((m) => ({
+        ...m,
+        entityId,
+        amountNad: b ? String(total) : "",
+        buyerEmail: b?.bookedBy?.email || "",
+        buyerPhone: b?.bookedBy?.phone || "",
+        buyerFirstName: parts[0] || "",
+        buyerLastName: parts.slice(1).join(" ") || "",
+      }));
+      return;
+    }
+    setManual((m) => ({ ...m, entityId }));
+  };
+
+  const submitManual = async () => {
+    const base = getBlcApiBase();
+    if (!base || !getBlcApiKey()) {
+      setMsg("Configure API base URL and API key.");
+      return;
+    }
+    if (!adminPwd.trim()) {
+      setMsg("Enter admin password.");
+      return;
+    }
+    const amt = Number(manual.amountNad);
+    if (!(amt > 0)) {
+      setMsg("Enter a valid amount.");
+      return;
+    }
+    let entityId = manual.entityId.trim();
+    if (manual.kind !== "other" && !entityId) {
+      setMsg("Select a bid or booking.");
+      return;
+    }
+    if (manual.kind === "other" && !entityId) entityId = "misc";
+
+    let invoiceText = "";
+    let emailSubject = "";
+    let listingName = "";
+    const bid = manual.kind === "sale_bid" ? bids.find((b) => b.id === entityId) : null;
+    const booking = manual.kind === "hire_booking" ? bookings.find((b) => b.id === entityId) : null;
+    const listing = bid ? listings.find((l) => l.id === bid.listingId) : null;
+    if (bid && listing) {
+      const inv = buildSaleInvoiceEmail({ bid, listing, ownerEmail: listing.email || "", buyerEmail: manual.buyerEmail || bid.email || "" });
+      invoiceText = inv.body + "\n\n(Manual payment recorded — awaiting admin confirmation.)";
+      emailSubject = inv.subject;
+      listingName = listing.name || bid.listingName || "";
+    } else if (booking) {
+      const qRef = booking.quoteRef || genQuoteRef(booking.id);
+      const { body } = buildQuoteEmail(booking, qRef);
+      invoiceText = body + "\n\n(Manual payment recorded — awaiting admin confirmation.)";
+      emailSubject = `Booking ${qRef} — ${booking.listingName}`;
+      listingName = booking.listingName || "";
+    } else {
+      invoiceText = `Manual payment pending confirmation.\nAmount: N$${amt.toLocaleString()}\nNote: ${manual.manualNote || "-"}`;
+      emailSubject = `Manual payment — ${entityId}`;
+    }
+
+    setMsg("");
+    try {
+      const r = await fetch(base + "/api/admin/payments/manual", {
+        method: "POST",
+        headers: blcAdminMailHeaders(adminPwd.trim()),
+        body: JSON.stringify({
+          kind: manual.kind,
+          entityId,
+          amountNad: amt,
+          buyerEmail: manual.buyerEmail.trim(),
+          buyerPhone: (manual.buyerPhone || "").replace(/\s/g, ""),
+          buyerFirstName: manual.buyerFirstName,
+          buyerLastName: manual.buyerLastName,
+          manualNote: manual.manualNote,
+          invoiceText,
+          emailSubject,
+          listingName,
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) {
+        setMsg(d.error || "Manual save failed.");
+        return;
+      }
+      await loadLedger();
+    } catch (e) {
+      setMsg(String(e.message || e));
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 1100, margin: "0 auto 28px", padding: "0 8px" }}>
+      <div style={{ fontFamily: "Oswald,sans-serif", fontSize: 22, letterSpacing: "1px", color: "var(--ivory)", marginBottom: 8 }}>PayToday & payment ledger</div>
+      <p style={{ fontSize: 12, color: "var(--sand)", marginBottom: 14 }}>
+        Ledger entries come from this API (<code style={{ fontSize: 11 }}>/api/admin/payments</code>). Use <strong>Refresh ledger</strong> after PayToday or manual entries. Confirm manual_pending when cash/bank clears —
+        customer notifications fire on confirm.
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end", marginBottom: 16 }}>
+        <div className="fg" style={{ minWidth: 200 }}>
+          <label>Admin password</label>
+          <input type="password" value={adminPwd} onChange={(e) => setAdminPwd(e.target.value)} placeholder="Same as admin login" autoComplete="off" />
+        </div>
+        <button type="button" className="btn-primary" disabled={loading} onClick={loadLedger}>
+          {loading ? "Loading…" : "Refresh ledger"}
+        </button>
+      </div>
+      {msg && <div style={{ fontSize: 12, color: "#ef9a9a", marginBottom: 12 }}>{msg}</div>}
+
+      <div style={{ background: "var(--earth)", border: "1px solid var(--clay)", borderRadius: 6, padding: 16, marginBottom: 20 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--horizon)", marginBottom: 10 }}>Record manual payment (bank / EFT / cash)</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 12 }}>
+          <div className="fg">
+            <label>Type</label>
+            <select value={manual.kind} onChange={(e) => setManual({ ...manual, kind: e.target.value, entityId: "" })}>
+              <option value="sale_bid">Sale — accepted bid</option>
+              <option value="hire_booking">Hire — confirmed booking</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          {manual.kind === "sale_bid" && (
+            <div className="fg">
+              <label>Bid</label>
+              <select value={manual.entityId} onChange={(e) => onPickEntity(e.target.value)}>
+                <option value="">Select…</option>
+                {acceptedBids.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.listingName} — N${(b.amount || 0).toLocaleString()} — {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {manual.kind === "hire_booking" && (
+            <div className="fg">
+              <label>Booking</label>
+              <select value={manual.entityId} onChange={(e) => onPickEntity(e.target.value)}>
+                <option value="">Select…</option>
+                {confirmedBk.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.listingName} — {b.bookedBy?.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {manual.kind === "other" && (
+            <div className="fg">
+              <label>Entity ref</label>
+              <input value={manual.entityId} onChange={(e) => setManual({ ...manual, entityId: e.target.value })} placeholder="internal reference id" />
+            </div>
+          )}
+          <div className="fg">
+            <label>Amount (NAD)</label>
+            <input value={manual.amountNad} onChange={(e) => setManual({ ...manual, amountNad: e.target.value })} placeholder="e.g. 12500" />
+          </div>
+          <div className="fg">
+            <label>Buyer email</label>
+            <input value={manual.buyerEmail} onChange={(e) => setManual({ ...manual, buyerEmail: e.target.value })} />
+          </div>
+          <div className="fg">
+            <label>Buyer phone</label>
+            <input value={manual.buyerPhone} onChange={(e) => setManual({ ...manual, buyerPhone: e.target.value })} />
+          </div>
+        </div>
+        <div className="fg" style={{ marginTop: 12 }}>
+          <label>Note (slip ref, branch, etc.)</label>
+          <textarea rows={2} value={manual.manualNote} onChange={(e) => setManual({ ...manual, manualNote: e.target.value })} />
+        </div>
+        <button type="button" className="btn-outline" style={{ marginTop: 12 }} onClick={submitManual}>
+          Save as manual_pending
+        </button>
+      </div>
+
+      <div style={{ overflowX: "auto", border: "1px solid var(--clay)", borderRadius: 6 }}>
+        <table className="admin-table" style={{ minWidth: 720 }}>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Ref</th>
+              <th>Status</th>
+              <th>Kind</th>
+              <th>N$</th>
+              <th>Note</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {payments.length === 0 ? (
+              <tr>
+                <td colSpan={7} style={{ textAlign: "center", color: "var(--bark)", padding: 24 }}>
+                  No rows loaded. Enter password and refresh.
+                </td>
+              </tr>
+            ) : (
+              payments.map((p) => (
+                <tr key={p.id}>
+                  <td style={{ fontSize: 11 }}>{p.createdAt ? new Date(p.createdAt).toLocaleString("en-NA") : ""}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 11 }}>{p.reference}</td>
+                  <td>{p.status}</td>
+                  <td>{p.kind}</td>
+                  <td>{Number(p.amountNad || 0).toLocaleString()}</td>
+                  <td style={{ fontSize: 11, maxWidth: 220 }}>{p.manualNote || ""}</td>
+                  <td>
+                    {p.status === "manual_pending" ? (
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        style={{ fontSize: 11, padding: "4px 10px" }}
+                        disabled={busyId === p.id}
+                        onClick={() => confirmOne(p.id)}
+                      >
+                        Confirm paid
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMIN PAGE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6494,7 +7047,12 @@ function AdminPage({ listings, setListings, interests, setInterests, chats, setC
         </div>
       </div>
 
-      {tab === "payments" && <NamibiaPaymentGatewaysPanel />}
+      {tab === "payments" && (
+        <>
+          <AdminPayTodayLedgerPanel bids={bids} setBids={setBids} bookings={bookings} setBookings={setBookings} listings={listings} />
+          <NamibiaPaymentGatewaysPanel />
+        </>
+      )}
       {tab === "analytics" && <AnalyticsDashboard listings={listings} bookings={bookings} interests={interests} ads={ads} chats={chats} ratings={ratings} />}
       {tab === "social" && <AdminSocialBoostPanel listings={listings} />}
       {tab === "leads" && <AdminLeadsPanel interests={interests} onMarkRead={markRead} />}
@@ -6836,6 +7394,48 @@ function App() {
       else sessionStorage.removeItem("blc_admin_auth");
     } catch {}
   }, [adminAuthed]);
+
+  /** After PayToday (Android bridge or web CLIENT_APP_URL redirect): sync server ledger and unlock local access. */
+  useEffect(() => {
+    const h = typeof window !== "undefined" ? window.location.hash || "" : "";
+    const m = /^#paySync=(.+)$/.exec(h);
+    if (!m) return;
+    const ref = decodeURIComponent(m[1]);
+    try {
+      window.history.replaceState(null, "", (window.location.pathname || "") + (window.location.search || ""));
+    } catch {}
+    let cancelled = false;
+    (async () => {
+      const d = await blcPaymentSync(ref);
+      if (cancelled) return;
+      if (d && d.payment && d.payment.status === "paid" && d.mergeHints) {
+        applyMergeHintsLocal(
+          d.mergeHints,
+          d.payment,
+          loadBids(),
+          loadBookings(),
+          (u) => {
+            setBids(u);
+            saveBids(u);
+          },
+          (u) => {
+            setBookings(u);
+            saveBookings(u);
+          }
+        );
+        setToast({ msg: "Payment confirmed — access updated.", isSale: false });
+        return;
+      }
+      try {
+        window.alert(
+          "Payment could not be verified yet. If you completed PayToday, wait a moment and open the app again, or ask admin to confirm in the payment ledger."
+        );
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const changeLang = (l) => { setLang(l); saveLang(l); };
 

@@ -2,6 +2,10 @@
 .gradle/
 **/build/
 local.properties
+# Firebase Android config (download from Firebase Console; do not commit secrets)
+app/google-services.json
+# Repo-root Windows junction to app/src/main/assets/www (local convenience only)
+/www
 *.iml
 captures/
 .externalNativeBuild/

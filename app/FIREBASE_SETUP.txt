@@ -1,0 +1,31 @@
+BLC Plant Hire — Firebase (Android shell)
+
+1) Firebase Console (https://console.firebase.google.com)
+   - Create or open a project.
+   - Add an Android app.
+
+2) Application IDs (this project uses a debug suffix)
+   - Release build: com.blctransport.planthire
+   - Debug build:  com.blctransport.planthire.debug  (see app/build.gradle → applicationIdSuffix ".debug")
+
+   Register BOTH in Firebase (two Android apps in the same project), OR use only the debug
+   package while developing and add release before shipping. Each app download gives its own
+   google-services.json — for two IDs, use the Firebase tool to merge configs or download the
+   file that lists both client entries (Console supports multi-package in one file when both
+   apps exist in the same Firebase project).
+
+3) Place the file
+   - Save as: app/google-services.json
+   - This path is gitignored. Do not commit real production keys to a public repo.
+
+4) Rebuild
+   - From repo root: gradlew.bat assembleDebug   (Windows)
+   - Or Android Studio: Build → Make Project
+
+5) What is integrated
+   - Firebase Analytics + Crashlytics (native), auto-initialized when google-services.json is present.
+   - The WebView SPA (www/index.html) is unchanged; if you want Firebase in the web layer, add the
+     Firebase JS SDK in that HTML separately (different config: web app in Console).
+
+6) Optional: FCM (push)
+   - Not added by default. Add firebase-messaging and a Service only if you need push to the shell.

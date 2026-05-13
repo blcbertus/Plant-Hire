@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.webkit.JavascriptInterface;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
@@ -48,6 +49,16 @@ public class MainActivity extends Activity {
 
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
         webView.setWebChromeClient(new WebChromeClient());
+
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void onPaymentComplete(String reference, String status) {
+                final String ref = reference != null ? reference : "";
+                runOnUiThread(() ->
+                        webView.loadUrl("file:///android_asset/www/index.html#paySync=" + Uri.encode(ref))
+                );
+            }
+        }, "BLCAndroid");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
