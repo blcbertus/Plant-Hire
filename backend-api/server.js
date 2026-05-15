@@ -8,6 +8,10 @@ const crypto = require("crypto");
 const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
+const {
+  getFirebaseAdmin,
+  firebaseAdminStatus,
+} = require("./firebase-admin-init");
 
 const PORT = parseInt(process.env.PORT || "8787", 10);
 const API_KEY = (process.env.API_KEY || "").trim();
@@ -82,6 +86,7 @@ async function sendMail({ to, subject, text, html }) {
 }
 
 app.get("/api/health", (req, res) => {
+  const adminNs = getFirebaseAdmin();
   res.json({
     ok: true,
     service: "blc-plant-hire-api",
@@ -90,6 +95,8 @@ app.get("/api/health", (req, res) => {
     hasTwilio: !!(TWILIO_SID && TWILIO_TOKEN),
     hasPaymentWebhook: !!PAYMENT_WEBHOOK_SECRET,
     paytodayConfigured: !!(PAYTODAY_BUSINESS_ID && PAYTODAY_BUSINESS_NAME && APP_BASE_URL),
+    hasFirebaseAdmin: !!adminNs,
+    firebaseAdmin: firebaseAdminStatus(),
   });
 });
 

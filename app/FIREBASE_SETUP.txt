@@ -6,7 +6,7 @@ BLC Plant Hire — Firebase (Android shell)
 
 2) Application IDs (this project uses a debug suffix)
    - Release build: com.blctransport.planthire
-   - Debug build:  com.blctransport.planthire.debug  (see app/build.gradle → applicationIdSuffix ".debug")
+   - Debug build:  com.blctransport.planthire.debug  (see app/build.gradle.kts → applicationIdSuffix ".debug")
 
    Register BOTH in Firebase (two Android apps in the same project), OR use only the debug
    package while developing and add release before shipping. Each app download gives its own
@@ -29,3 +29,16 @@ BLC Plant Hire — Firebase (Android shell)
 
 6) Optional: FCM (push)
    - Not added by default. Add firebase-messaging and a Service only if you need push to the shell.
+
+7) Web layer (WebView SPA — www/index.html)
+   - Native Android uses google-services.json; the bundled HTML uses the Firebase *Web* SDK and a
+     separate config object from the Console (not the Android JSON file).
+   - In Firebase Console: Project settings → Your apps → Register app → Web (</>). Copy the
+     firebaseConfig object into app/src/main/assets/www/firebase-web-config.js as
+     window.__BLC_FIREBASE_WEB_CONFIG__ = { ... };
+   - The SPA loads firebase-app-compat + firebase-analytics-compat from gstatic and runs
+     firebase.initializeApp when the config is non-null. Use window.blcFirebaseLogEvent(name, params)
+     from inline scripts or React handlers for custom Analytics events.
+   - file:// WebView limits: Google Sign-In and some Auth flows expect https + authorized domains;
+     Analytics + Firestore with appropriate rules are the typical fit. Add more compat libraries
+     (firebase-firestore-compat.js, etc.) in index.html if you need them, after firebase-app-compat.
